@@ -1,0 +1,99 @@
+import yfinance as yf
+import pandas as pd
+
+
+# Define the ticker symbol for the stock you want to trade
+ticker_symbol = 'ONGC.NS'
+
+# Define the start and end dates for the data
+start_date = "2021-01-01"
+end_date = "2023-03-01"
+
+# Fetch the data from Yahoo Finance API
+stock_data = yf.download(ticker_symbol, start=start_date, end=end_date)
+
+# Print the first 5 rows of the data
+print(stock_data.head())
+
+# Define the period for calculating the moving average and standard deviation
+period = 20
+
+# Calculate the moving average
+stock_data['MA'] = stock_data['Close'].rolling(window=period).mean()
+
+# Calculate the standard deviation
+stock_data['STD'] = stock_data['Close'].rolling(window=period).std()
+
+# Print the first 5 rows of the data with moving average and standard deviation
+print(stock_data.head())
+
+
+# Define the number of standard deviations for upper and lower bounds
+num_std = 2
+
+# Calculate the upper and lower bounds
+stock_data['Upper'] = stock_data['MA'] + (stock_data['STD'] * num_std)
+stock_data['Lower'] = stock_data['MA'] - (stock_data['STD'] * num_std)
+
+# Print the first 5 rows of the data with moving average, standard deviation, upper and lower bounds
+print(stock_data.head())
+
+# Define the initial capital for trading
+initial_capital = 100000
+
+# Define the number of shares to trade
+num_shares = 100
+
+# Initialize the position
+position = None
+
+# Initialize the list of trades
+trades = []
+
+# Loop through each row in the stock data
+for i, row in stock_data.iterrows():
+
+    # Buy the stock if it crosses the lower bound
+    if row['Close'] < row['Lower'] and position != 'long':
+        # Calculate the number of shares to buy
+        num_buy_shares = int(initial_capital / (num_shares * row['Close']))
+        # Calculate the total cost of buying the shares
+        total_buy_cost = num_buy_shares * num_shares * row['Close']
+        # Subtract the total cost from the initial capital
+        initial_capital -= total_buy_cost
+        # Update the position
+        position = 'long'
+        # Add the trade to the list of trades
+        trades.append(('buy', num_buy_shares, row['Close'], total_buy_cost))
+    
+    # Short the stock if it crosses the upper bound
+    elif row['Close'] > row['Upper'] and position != 'short':
+        # Calculate the number of shares to short
+        num_short_shares = int(initial_capital / (num_shares * row['Close']))
+        # Calculate the total proceeds from shorting the shares
+        total_short_proceeds = num_short_shares * num_shares * row['Close']
+        # Add the total proceeds to the initial capital
+        initial_capital += total_short_proceeds
+        # Update the position
+        position = 'short'
+        # Add the trade to the list of trades
+        trades.append(('short', num_short_shares, row['Close'], total_short_proceeds))
+    
+    # Exit the position if the stock crosses the moving average
+    elif (row['Close'] > row['MA'] and position == 'long') or (row['Close'] < row['MA'] and position == 'short'):
+        # Calculate the profit/loss from the trade
+        last_trade = trades[-1]
+        if last_trade[0] == 'buy':
+            profit_loss = num_shares * (row['Close'] - last_trade[2]) * last_trade[1]
+        elif last_trade[0] == 'short':
+            profit_loss = num_shares * (last_trade[2] - row['Close']) * last_trade[1]
+        # Add the profit/loss to the initial capital
+        initial_capital += profit_loss
+        # Update the position
+        position = None
+        # Add the trade to the list of trades
+        trades.append(('exit', profit_loss, row['Close'], initial_capital))
+        
+# Print the list of trades
+for trade in trades:
+    print(trade)
